@@ -42,8 +42,20 @@
   .tile .lbl { color: var(--text2); font-size: 13px; }
   .tile .val { font-size: 26px; font-weight: 700; margin-top: 6px; }
   .tile .sub { color: var(--text2); font-size: 12px; margin-top: 2px; }
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
-  .tab { border: 0; background: transparent; color: var(--text2); border-radius: 9px; padding: 10px 4px; font-size: 14px; font-weight: 600; }
+  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .tab { border: 0; background: transparent; color: var(--text2); border-radius: 9px; padding: 10px 2px; font-size: 13.5px; font-weight: 600; }
+  .fila.toca { cursor: pointer; }
+  .flecha { color: var(--accent); font-size: 12px; margin-left: 6px; }
+  .detalle { background: var(--input); border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; }
+  .linea { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13.5px; }
+  .linea .l { color: var(--text2); }
+  .linea .v { font-weight: 600; white-space: nowrap; }
+  .linea.fuerte { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 9px; }
+  .linea.fuerte .l { color: var(--text); font-weight: 700; }
+  .resumen .linea { font-size: 15px; padding: 8px 0; }
+  .resumen h2 { font-size: 16px; margin: 0 0 6px; }
+  .resumen .nota { color: var(--text2); font-size: 12.5px; margin-bottom: 8px; }
+  .acc { color: var(--accent); } 
   .tab.activa { background: var(--accent); color: #fff; }
   .fila { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
   .fila:first-child { border-top: 0; }
@@ -102,12 +114,15 @@
     </div>
 
     <div class="tabs" role="tablist">
-      <button class="tab activa" data-tab="sinRendir">Sin rendir</button>
-      <button class="tab" data-tab="transferencias">Transferencias</button>
+      <button class="tab activa" data-tab="resumen">Resumen</button>
+      <button class="tab" data-tab="sinRendir">Sin rendir</button>
+      <button class="tab" data-tab="transferencias">Transf.</button>
       <button class="tab" data-tab="rendidos">Rendidos</button>
     </div>
 
-    <div id="panelSinRendir" class="card"></div>
+    <div id="panelResumen" class="card resumen"></div>
+
+    <div id="panelSinRendir" class="card oculto"></div>
 
     <div id="panelTransferencias" class="card oculto">
       <input id="buscarTransf" class="buscar" type="search" placeholder="Buscar cliente, zona o N° de reparto">
@@ -147,7 +162,9 @@
   const porFecha = (a, b) => String(b.fecha).localeCompare(String(a.fecha)) || Number(b.numeroReparto) - Number(a.numeroReparto);
 
   let repartos = [];
-  let tab = 'sinRendir';
+  let tab = 'resumen';
+  const abiertos = new Set(); // repartos con el detalle desplegado
+  const plata2 = (n) => '$ ' + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // ---------- Pantallas ----------
   const pantalla = (cual) => {
@@ -159,12 +176,23 @@
     b.addEventListener('click', () => {
       tab = b.dataset.tab;
       document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('activa', x === b));
+      $('panelResumen').classList.toggle('oculto', tab !== 'resumen');
       $('panelSinRendir').classList.toggle('oculto', tab !== 'sinRendir');
       $('panelTransferencias').classList.toggle('oculto', tab !== 'transferencias');
       $('panelRendidos').classList.toggle('oculto', tab !== 'rendidos');
     })
   );
   $('buscarTransf').addEventListener('input', dibujar);
+  // Tocar un reparto despliega sus números.
+  for (const id of ['panelSinRendir', 'listaRendidos']) {
+    $(id).addEventListener('click', (e) => {
+      const fila = e.target.closest('[data-n]');
+      if (!fila) return;
+      const n = fila.dataset.n;
+      abiertos.has(n) ? abiertos.delete(n) : abiertos.add(n);
+      dibujar();
+    });
+  }
 
   // ---------- Datos en tiempo real ----------
   if (!/^[a-z0-9]{20,}$/.test(TOKEN)) {
@@ -197,6 +225,33 @@
     return (r.transferencias || []).filter((t) => !t.pago);
   }
 
+  // Números de la planilla (los repartos copiados antes de este cambio no los tienen).
+  const LINEAS = [
+    ['Total planilla', 'totalPlanilla'],
+    ['Total descuentos', 'totalDescuentos'],
+    ['Cuenta corriente', 'cuentaCorriente'],
+    ['Impuesto', 'impuesto'],
+    ['Transferencia', 'transferencia'],
+    ['Cobranza', 'cobranza'],
+  ];
+  const tieneNumeros = (r) => r.totalEntregado !== undefined;
+  function numeros(x) {
+    return LINEAS.map(([l, k]) => `<div class="linea"><span class="l">${l}</span><span class="v">${plata(x[k])}</span></div>`).join('') +
+      `<div class="linea fuerte"><span class="l">Total entregado</span><span class="v acc">${plata(x.totalEntregado)}</span></div>` +
+      `<div class="linea"><span class="l">Comisión</span><span class="v pos">${plata2(x.comision)}</span></div>`;
+  }
+  function filaReparto(r, derecha) {
+    const abierto = abiertos.has(String(r.numeroReparto));
+    return `<div class="fila toca" data-n="${esc(r.numeroReparto)}">
+        <div class="izq">
+          <div class="titulo">N° ${esc(r.numeroReparto)}<span class="flecha">${abierto ? '▾' : '▸'}</span></div>
+          <div class="meta">${fechaCorta(r.fecha)} · ${esc(zonaTexto(r))}${r.repartidor ? ' · ' + esc(r.repartidor) : ''}</div>
+        </div>
+        ${derecha}
+      </div>` +
+      (abierto ? `<div class="detalle">${tieneNumeros(r) ? numeros(r) : '<div class="linea"><span class="l">Sin datos de planilla todavía.</span></div>'}</div>` : '');
+  }
+
   function dibujar() {
     const sinRendir = repartos.filter((r) => !r.rendido).sort(porFecha);
     const transf = [];
@@ -214,13 +269,7 @@
       ? sinRendir.map((r) => {
           const p = pendientesDe(r);
           const pTot = p.reduce((s, t) => s + (Number(t.monto) || 0), 0);
-          return `<div class="fila">
-            <div class="izq">
-              <div class="titulo">N° ${esc(r.numeroReparto)}</div>
-              <div class="meta">${fechaCorta(r.fecha)} · ${esc(zonaTexto(r))}${r.repartidor ? ' · ' + esc(r.repartidor) : ''}</div>
-            </div>
-            <div class="monto">${plata(r.totalPlanilla)}${p.length ? `<span class="chico">${p.length} transf. pend. · ${plata(pTot)}</span>` : ''}</div>
-          </div>`;
+          return filaReparto(r, `<div class="monto">${plata(r.totalPlanilla)}${p.length ? `<span class="chico">${p.length} transf. pend. · ${plata(pTot)}</span>` : ''}</div>`);
         }).join('')
       : '<div class="vacio">No hay repartos sin rendir.</div>';
 
@@ -255,14 +304,17 @@
     $('listaRendidos').innerHTML =
       `<div class="total"><span class="lbl">${rendidos.length} RENDIDO${rendidos.length === 1 ? '' : 'S'}</span><span class="val">${plata(rendidos.reduce((s, r) => s + r.totalPlanilla, 0))}</span></div>` +
       (rendidos.length
-        ? rendidos.map((r) => `<div class="fila">
-            <div class="izq">
-              <div class="titulo">N° ${esc(r.numeroReparto)}</div>
-              <div class="meta">${fechaCorta(r.fecha)} · ${esc(zonaTexto(r))}${r.repartidor ? ' · ' + esc(r.repartidor) : ''}</div>
-            </div>
-            <div class="monto pos">${plata(r.totalPlanilla)}</div>
-          </div>`).join('')
+        ? rendidos.map((r) => filaReparto(r, `<div class="monto pos">${plata(r.totalPlanilla)}</div>`)).join('')
         : '<div class="vacio">Todavía no hay repartos rendidos.</div>');
+
+    // Resumen del mes: suma de los repartos RENDIDOS
+    const suma = {};
+    for (const k of [...LINEAS.map((x) => x[1]), 'totalEntregado', 'comision']) suma[k] = rendidos.reduce((s, r) => s + (Number(r[k]) || 0), 0);
+    const faltan = rendidos.filter((r) => !tieneNumeros(r)).length;
+    $('panelResumen').innerHTML =
+      `<h2>Resumen del mes</h2><div class="nota">Suma de los ${rendidos.length} reparto${rendidos.length === 1 ? '' : 's'} rendido${rendidos.length === 1 ? '' : 's'}${sinRendir.length ? ` · ${sinRendir.length} sin rendir no se cuentan` : ''}</div>` +
+      (rendidos.length ? numeros(suma) : '<div class="vacio">Todavía no hay repartos rendidos.</div>') +
+      (faltan ? `<div class="nota" style="margin-top:8px">${faltan} reparto(s) sin datos de planilla.</div>` : '');
   }
 </script>
 </body>
