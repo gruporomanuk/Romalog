@@ -6,10 +6,10 @@
 <meta name="robots" content="noindex, nofollow">
 <title>ROM · Repartos</title>
 <!--
-  Página de SOLO LECTURA para el jefe de la empresa.
-  Lee únicamente la colección `vista_jefe` (la arma la app ROM: services/vistaJefe.js), en tiempo real.
-  Se publica en https://gruporomanuk.github.io/Romalog/jefe/ junto con la web (GitHub Actions).
-  Las reglas de Firestore son las que impiden que esta cuenta lea o escriba otra cosa.
+  Página de SOLO LECTURA para DTS, sin cuenta: se entra con el link secreto  .../Romalog/dts/#<token>
+  Lee en tiempo real vista_dts/<token>/repartos (la arma la app ROM: services/vistaDts.js).
+  Las reglas de Firestore solo dejan leer esa ruta si <token> es el vigente (config/vistaDts).
+  Se publica junto con la web (GitHub Actions).
 -->
 <style>
   :root {
@@ -77,26 +77,18 @@
 <body>
 <div class="wrap">
 
-  <!-- Ingreso -->
-  <section id="pantallaLogin" class="login oculto">
+  <!-- Vista -->
+  <section id="pantallaSinLink" class="login oculto">
     <h1>ROM · Repartos</h1>
-    <p>Ingresá con el usuario que te pasaron.</p>
-    <form id="formLogin">
-      <input id="email" type="email" autocomplete="username" placeholder="Email" required>
-      <input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña" required>
-      <button id="btnIngresar" class="btn" type="submit">Ingresar</button>
-      <div id="errorLogin" class="error"></div>
-    </form>
+    <p id="textoSinLink">Este link está incompleto. Pedí el link de nuevo.</p>
   </section>
 
-  <!-- Vista -->
   <section id="pantallaVista" class="oculto">
     <header>
       <div>
         <h1>ROM · Repartos</h1>
         <div class="vivo"><span id="punto" class="punto off"></span><span id="estadoVivo">Conectando…</span></div>
       </div>
-      <button id="btnSalir" class="btn-texto">Salir</button>
     </header>
 
     <div class="tiles">
@@ -140,8 +132,6 @@
 
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
-  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence }
-    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
   import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
   // Misma configuración pública que src/firebase.js.
@@ -153,9 +143,8 @@
     messagingSenderId: '253488769993',
     appId: '1:253488769993:web:1a5fa2763722728ada9618',
   });
-  const auth = getAuth(app);
   const db = getFirestore(app);
-  const COLECCION = 'vista_jefe';
+  const TOKEN = decodeURIComponent(location.hash.replace(/^#/, '')).trim();
 
   const $ = (id) => document.getElementById(id);
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -166,31 +155,15 @@
   const porFecha = (a, b) => String(b.fecha).localeCompare(String(a.fecha)) || Number(b.numeroReparto) - Number(a.numeroReparto);
 
   let repartos = [];
-  let cancelar = null;
   let tab = 'sinRendir';
   const hoy = new Date();
   let mes = { anio: hoy.getFullYear(), mes: hoy.getMonth() };
 
   // ---------- Pantallas ----------
-  const mostrar = (logueado) => {
-    $('pantallaLogin').classList.toggle('oculto', logueado);
-    $('pantallaVista').classList.toggle('oculto', !logueado);
+  const pantalla = (cual) => {
+    $('pantallaSinLink').classList.toggle('oculto', cual !== 'sinLink');
+    $('pantallaVista').classList.toggle('oculto', cual !== 'vista');
   };
-
-  $('formLogin').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    $('errorLogin').textContent = '';
-    $('btnIngresar').disabled = true;
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-      await signInWithEmailAndPassword(auth, $('email').value.trim(), $('clave').value);
-    } catch (err) {
-      $('errorLogin').textContent = 'Email o contraseña incorrectos.';
-    } finally {
-      $('btnIngresar').disabled = false;
-    }
-  });
-  $('btnSalir').addEventListener('click', () => signOut(auth));
 
   document.querySelectorAll('.tab').forEach((b) =>
     b.addEventListener('click', () => {
@@ -211,14 +184,12 @@
   }
 
   // ---------- Datos en tiempo real ----------
-  onAuthStateChanged(auth, (usuario) => {
-    if (cancelar) { cancelar(); cancelar = null; }
-    mostrar(!!usuario);
-    if (!usuario) return;
-    $('estadoVivo').textContent = 'Conectando…';
-    $('punto').classList.add('off');
-    cancelar = onSnapshot(
-      collection(db, COLECCION),
+  if (!/^[a-z0-9]{20,}$/.test(TOKEN)) {
+    pantalla('sinLink');
+  } else {
+    pantalla('vista');
+    onSnapshot(
+      collection(db, 'vista_dts', TOKEN, 'repartos'),
       (snap) => {
         repartos = snap.docs.map((d) => ({ numeroReparto: d.id, ...d.data() }));
         const h = new Date();
@@ -227,13 +198,16 @@
         dibujar();
       },
       (err) => {
+        if (err.code === 'permission-denied') {
+          $('textoSinLink').textContent = 'Este link ya no es válido. Pedí el link nuevo.';
+          pantalla('sinLink');
+          return;
+        }
         $('punto').classList.add('off');
-        $('estadoVivo').textContent = err.code === 'permission-denied'
-          ? 'Este usuario no tiene permiso para ver los repartos.'
-          : 'Sin conexión. Reintentando…';
+        $('estadoVivo').textContent = 'Sin conexión. Reintentando…';
       }
     );
-  });
+  }
 
   // ---------- Dibujo ----------
   function pendientesDe(r) {
