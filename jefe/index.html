@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ROM · Repartos</title>
+<!--
+  Página de SOLO LECTURA para el jefe de la empresa.
+  Lee únicamente la colección `vista_jefe` (la arma la app ROM: services/vistaJefe.js), en tiempo real.
+  Se publica en https://gruporomanuk.github.io/Romalog/jefe/ junto con la web (GitHub Actions).
+  Las reglas de Firestore son las que impiden que esta cuenta lea o escriba otra cosa.
+-->
+<style>
+  :root {
+    --bg: #EDEEF0; --card: #FFFFFF; --input: #F2F3F5; --text: #1E2328; --text2: #7A7F87;
+    --pos: #2F7D5B; --neg: #B23A3A; --warn: #A66A16; --accent: #34586F; --border: #DBDDE0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181C; --card: #1E242B; --input: #262D35; --text: #ECEDEE; --text2: #9AA1AA;
+      --pos: #4CAF7D; --neg: #E0685F; --warn: #D99A4E; --accent: #6E9BBD; --border: #333A42;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+  .oculto { display: none !important; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 16px; }
+  h1 { font-size: 24px; margin: 0; }
+  .vivo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--pos); box-shadow: 0 0 0 0 var(--pos); animation: latido 2s infinite; }
+  .punto.off { background: var(--text2); animation: none; }
+  @keyframes latido { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pos) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  button { font: inherit; cursor: pointer; }
+  .btn-texto { background: none; border: 0; color: var(--accent); font-weight: 600; padding: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+  .tile .lbl { color: var(--text2); font-size: 13px; }
+  .tile .val { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .tile .sub { color: var(--text2); font-size: 12px; margin-top: 2px; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+  .tab { border: 0; background: transparent; color: var(--text2); border-radius: 9px; padding: 10px 4px; font-size: 14px; font-weight: 600; }
+  .tab.activa { background: var(--accent); color: #fff; }
+  .fila { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .fila:first-child { border-top: 0; }
+  .fila .izq { min-width: 0; }
+  .titulo { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { color: var(--text2); font-size: 12.5px; margin-top: 3px; }
+  .monto { font-weight: 700; font-size: 15px; white-space: nowrap; text-align: right; }
+  .monto .chico { display: block; font-weight: 500; font-size: 12px; color: var(--neg); margin-top: 3px; }
+  .neg { color: var(--neg); } .pos { color: var(--pos); }
+  .total { display: flex; justify-content: space-between; align-items: baseline; padding: 0 0 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .total .lbl { color: var(--text2); font-size: 13px; font-weight: 600; letter-spacing: .3px; }
+  .total .val { font-size: 18px; font-weight: 700; }
+  input[type=search], input[type=email], input[type=password] { width: 100%; background: var(--input); color: var(--text); border: 1px solid transparent; border-radius: 10px; padding: 12px 14px; font: inherit; font-size: 15px; outline: none; }
+  input:focus { border-color: var(--accent); }
+  .buscar { margin-bottom: 12px; }
+  .selector { display: flex; align-items: center; justify-content: space-between; background: var(--input); border-radius: 10px; margin-bottom: 12px; }
+  .selector button { background: none; border: 0; color: var(--accent); font-size: 20px; padding: 8px 16px; }
+  .selector span { font-weight: 600; }
+  .vacio { color: var(--text2); text-align: center; padding: 18px 0 8px; font-size: 14px; }
+  .login { max-width: 380px; margin: 12vh auto 0; }
+  .login h1 { margin-bottom: 4px; }
+  .login p { color: var(--text2); margin: 0 0 18px; font-size: 14px; }
+  .login input { margin-bottom: 10px; }
+  .btn { width: 100%; border: 0; border-radius: 12px; padding: 13px; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; }
+  .btn:disabled { opacity: .6; }
+  .error { color: var(--neg); font-size: 13.5px; margin-top: 10px; min-height: 18px; }
+  .pie { color: var(--text2); font-size: 12px; text-align: center; margin-top: 8px; }
+  @media (max-width: 380px) { .tile .val { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Ingreso -->
+  <section id="pantallaLogin" class="login oculto">
+    <h1>ROM · Repartos</h1>
+    <p>Ingresá con el usuario que te pasaron.</p>
+    <form id="formLogin">
+      <input id="email" type="email" autocomplete="username" placeholder="Email" required>
+      <input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña" required>
+      <button id="btnIngresar" class="btn" type="submit">Ingresar</button>
+      <div id="errorLogin" class="error"></div>
+    </form>
+  </section>
+
+  <!-- Vista -->
+  <section id="pantallaVista" class="oculto">
+    <header>
+      <div>
+        <h1>ROM · Repartos</h1>
+        <div class="vivo"><span id="punto" class="punto off"></span><span id="estadoVivo">Conectando…</span></div>
+      </div>
+      <button id="btnSalir" class="btn-texto">Salir</button>
+    </header>
+
+    <div class="tiles">
+      <div class="tile">
+        <div class="lbl">Sin rendir</div>
+        <div class="val" id="tSinRendir">–</div>
+        <div class="sub" id="tSinRendirSub">&nbsp;</div>
+      </div>
+      <div class="tile">
+        <div class="lbl">Transferencias pendientes</div>
+        <div class="val neg" id="tTransf">–</div>
+        <div class="sub" id="tTransfSub">&nbsp;</div>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab activa" data-tab="sinRendir">Sin rendir</button>
+      <button class="tab" data-tab="transferencias">Transferencias</button>
+      <button class="tab" data-tab="rendidos">Rendidos</button>
+    </div>
+
+    <div id="panelSinRendir" class="card"></div>
+
+    <div id="panelTransferencias" class="card oculto">
+      <input id="buscarTransf" class="buscar" type="search" placeholder="Buscar cliente, zona o N° de reparto">
+      <div id="listaTransf"></div>
+    </div>
+
+    <div id="panelRendidos" class="card oculto">
+      <div class="selector">
+        <button id="mesMenos" aria-label="Mes anterior">‹</button>
+        <span id="mesTexto"></span>
+        <button id="mesMas" aria-label="Mes siguiente">›</button>
+      </div>
+      <div id="listaRendidos"></div>
+    </div>
+
+    <div class="pie">Solo lectura · se actualiza solo</div>
+  </section>
+</div>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence }
+    from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+  import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+  // Misma configuración pública que src/firebase.js.
+  const app = initializeApp({
+    apiKey: 'AIzaSyBgXtsxPSTl2xXe5jAavTDKmm8qImR39mU',
+    authDomain: 'gruporomanuk-85a31.firebaseapp.com',
+    projectId: 'gruporomanuk-85a31',
+    storageBucket: 'gruporomanuk-85a31.firebasestorage.app',
+    messagingSenderId: '253488769993',
+    appId: '1:253488769993:web:1a5fa2763722728ada9618',
+  });
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const COLECCION = 'vista_jefe';
+
+  const $ = (id) => document.getElementById(id);
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const plata = (n) => '$ ' + Math.round(Number(n) || 0).toLocaleString('es-AR');
+  const fechaCorta = (iso) => (iso ? iso.split('-').reverse().join('/') : 'Sin fecha');
+  const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const zonaTexto = (r, nz) => [r.zona, nz || r.numeroZona ? `Zona ${nz || r.numeroZona}` : ''].filter(Boolean).join(' · ');
+  const porFecha = (a, b) => String(b.fecha).localeCompare(String(a.fecha)) || Number(b.numeroReparto) - Number(a.numeroReparto);
+
+  let repartos = [];
+  let cancelar = null;
+  let tab = 'sinRendir';
+  const hoy = new Date();
+  let mes = { anio: hoy.getFullYear(), mes: hoy.getMonth() };
+
+  // ---------- Pantallas ----------
+  const mostrar = (logueado) => {
+    $('pantallaLogin').classList.toggle('oculto', logueado);
+    $('pantallaVista').classList.toggle('oculto', !logueado);
+  };
+
+  $('formLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('errorLogin').textContent = '';
+    $('btnIngresar').disabled = true;
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      await signInWithEmailAndPassword(auth, $('email').value.trim(), $('clave').value);
+    } catch (err) {
+      $('errorLogin').textContent = 'Email o contraseña incorrectos.';
+    } finally {
+      $('btnIngresar').disabled = false;
+    }
+  });
+  $('btnSalir').addEventListener('click', () => signOut(auth));
+
+  document.querySelectorAll('.tab').forEach((b) =>
+    b.addEventListener('click', () => {
+      tab = b.dataset.tab;
+      document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('activa', x === b));
+      $('panelSinRendir').classList.toggle('oculto', tab !== 'sinRendir');
+      $('panelTransferencias').classList.toggle('oculto', tab !== 'transferencias');
+      $('panelRendidos').classList.toggle('oculto', tab !== 'rendidos');
+    })
+  );
+  $('buscarTransf').addEventListener('input', dibujar);
+  $('mesMenos').addEventListener('click', () => { mover(-1); });
+  $('mesMas').addEventListener('click', () => { mover(1); });
+  function mover(d) {
+    const x = new Date(mes.anio, mes.mes + d, 1);
+    mes = { anio: x.getFullYear(), mes: x.getMonth() };
+    dibujar();
+  }
+
+  // ---------- Datos en tiempo real ----------
+  onAuthStateChanged(auth, (usuario) => {
+    if (cancelar) { cancelar(); cancelar = null; }
+    mostrar(!!usuario);
+    if (!usuario) return;
+    $('estadoVivo').textContent = 'Conectando…';
+    $('punto').classList.add('off');
+    cancelar = onSnapshot(
+      collection(db, COLECCION),
+      (snap) => {
+        repartos = snap.docs.map((d) => ({ numeroReparto: d.id, ...d.data() }));
+        const h = new Date();
+        $('estadoVivo').textContent = `En vivo · actualizado ${h.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+        $('punto').classList.remove('off');
+        dibujar();
+      },
+      (err) => {
+        $('punto').classList.add('off');
+        $('estadoVivo').textContent = err.code === 'permission-denied'
+          ? 'Este usuario no tiene permiso para ver los repartos.'
+          : 'Sin conexión. Reintentando…';
+      }
+    );
+  });
+
+  // ---------- Dibujo ----------
+  function pendientesDe(r) {
+    return (r.transferencias || []).filter((t) => !t.pago);
+  }
+
+  function dibujar() {
+    const sinRendir = repartos.filter((r) => !r.rendido).sort(porFecha);
+    const transf = [];
+    for (const r of repartos) for (const t of pendientesDe(r)) transf.push({ ...t, r });
+    transf.sort((a, b) => porFecha(a.r, b.r));
+    const totalTransf = transf.reduce((s, t) => s + (Number(t.monto) || 0), 0);
+
+    $('tSinRendir').textContent = sinRendir.length;
+    $('tSinRendirSub').textContent = sinRendir.length ? `${plata(sinRendir.reduce((s, r) => s + r.totalPlanilla, 0))} en planillas` : 'Todo rendido';
+    $('tTransf').textContent = plata(totalTransf);
+    $('tTransfSub').textContent = `${transf.length} transferencia${transf.length === 1 ? '' : 's'}`;
+
+    // Sin rendir
+    $('panelSinRendir').innerHTML = sinRendir.length
+      ? sinRendir.map((r) => {
+          const p = pendientesDe(r);
+          const pTot = p.reduce((s, t) => s + (Number(t.monto) || 0), 0);
+          return `<div class="fila">
+            <div class="izq">
+              <div class="titulo">N° ${esc(r.numeroReparto)}</div>
+              <div class="meta">${fechaCorta(r.fecha)} · ${esc(zonaTexto(r))}${r.repartidor ? ' · ' + esc(r.repartidor) : ''}</div>
+            </div>
+            <div class="monto">${plata(r.totalPlanilla)}${p.length ? `<span class="chico">${p.length} transf. pend. · ${plata(pTot)}</span>` : ''}</div>
+          </div>`;
+        }).join('')
+      : '<div class="vacio">No hay repartos sin rendir.</div>';
+
+    // Transferencias pendientes (con buscador)
+    const q = $('buscarTransf').value.trim().toLowerCase();
+    const filtradas = q
+      ? transf.filter((t) => [t.cliente, t.numeroZona, t.r.numeroZona, t.r.numeroReparto, t.r.zona].some((v) => String(v || '').toLowerCase().includes(q)))
+      : transf;
+    const totFil = filtradas.reduce((s, t) => s + (Number(t.monto) || 0), 0);
+    $('listaTransf').innerHTML =
+      `<div class="total"><span class="lbl">TOTAL PENDIENTE${q ? ' (filtrado)' : ''}</span><span class="val neg">${plata(totFil)}</span></div>` +
+      (filtradas.length
+        ? filtradas.map((t) => `<div class="fila">
+            <div class="izq">
+              <div class="titulo">${esc(t.cliente)}</div>
+              <div class="meta">N° ${esc(t.r.numeroReparto)} · ${esc(zonaTexto(t.r, t.numeroZona))} · ${fechaCorta(t.r.fecha)}</div>
+            </div>
+            <div class="monto">${plata(t.monto)}</div>
+          </div>`).join('')
+        : `<div class="vacio">${q ? 'No hay transferencias que coincidan.' : 'No hay transferencias pendientes.'}</div>`);
+
+    // Rendidos del mes elegido
+    const clave = `${mes.anio}-${String(mes.mes + 1).padStart(2, '0')}`;
+    $('mesTexto').textContent = `${MESES[mes.mes]} ${mes.anio}`;
+    const rendidos = repartos.filter((r) => r.rendido && String(r.fecha).startsWith(clave)).sort(porFecha);
+    $('listaRendidos').innerHTML =
+      `<div class="total"><span class="lbl">${rendidos.length} RENDIDO${rendidos.length === 1 ? '' : 'S'}</span><span class="val">${plata(rendidos.reduce((s, r) => s + r.totalPlanilla, 0))}</span></div>` +
+      (rendidos.length
+        ? rendidos.map((r) => `<div class="fila">
+            <div class="izq">
+              <div class="titulo">N° ${esc(r.numeroReparto)}</div>
+              <div class="meta">${fechaCorta(r.fecha)} · ${esc(zonaTexto(r))}${r.repartidor ? ' · ' + esc(r.repartidor) : ''}</div>
+            </div>
+            <div class="monto pos">${plata(r.totalPlanilla)}</div>
+          </div>`).join('')
+        : '<div class="vacio">No hay repartos rendidos en este mes.</div>');
+  }
+</script>
+</body>
+</html>
