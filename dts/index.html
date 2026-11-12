@@ -6,9 +6,9 @@
 <meta name="robots" content="noindex, nofollow">
 <title>ROM · Repartos</title>
 <!--
-  Página de SOLO LECTURA para DTS, sin cuenta: se entra con el link secreto  .../Romalog/dts/#<token>
+  Página de SOLO LECTURA para DTS, sin cuenta: un link secreto por mes  .../Romalog/dts/#<token>
   Lee en tiempo real vista_dts/<token>/repartos (la arma la app ROM: services/vistaDts.js).
-  Las reglas de Firestore solo dejan leer esa ruta si <token> es el vigente (config/vistaDts).
+  Las reglas de Firestore solo dejan leer esa ruta si <token> está en config/vistaDts.tokens.
   Se publica junto con la web (GitHub Actions).
 -->
 <style>
@@ -59,9 +59,6 @@
   input[type=search], input[type=email], input[type=password] { width: 100%; background: var(--input); color: var(--text); border: 1px solid transparent; border-radius: 10px; padding: 12px 14px; font: inherit; font-size: 15px; outline: none; }
   input:focus { border-color: var(--accent); }
   .buscar { margin-bottom: 12px; }
-  .selector { display: flex; align-items: center; justify-content: space-between; background: var(--input); border-radius: 10px; margin-bottom: 12px; }
-  .selector button { background: none; border: 0; color: var(--accent); font-size: 20px; padding: 8px 16px; }
-  .selector span { font-weight: 600; }
   .vacio { color: var(--text2); text-align: center; padding: 18px 0 8px; font-size: 14px; }
   .login { max-width: 380px; margin: 12vh auto 0; }
   .login h1 { margin-bottom: 4px; }
@@ -86,7 +83,7 @@
   <section id="pantallaVista" class="oculto">
     <header>
       <div>
-        <h1>ROM · Repartos</h1>
+        <h1 id="titulo">ROM · Repartos</h1>
         <div class="vivo"><span id="punto" class="punto off"></span><span id="estadoVivo">Conectando…</span></div>
       </div>
     </header>
@@ -118,11 +115,6 @@
     </div>
 
     <div id="panelRendidos" class="card oculto">
-      <div class="selector">
-        <button id="mesMenos" aria-label="Mes anterior">‹</button>
-        <span id="mesTexto"></span>
-        <button id="mesMas" aria-label="Mes siguiente">›</button>
-      </div>
       <div id="listaRendidos"></div>
     </div>
 
@@ -156,8 +148,6 @@
 
   let repartos = [];
   let tab = 'sinRendir';
-  const hoy = new Date();
-  let mes = { anio: hoy.getFullYear(), mes: hoy.getMonth() };
 
   // ---------- Pantallas ----------
   const pantalla = (cual) => {
@@ -175,13 +165,6 @@
     })
   );
   $('buscarTransf').addEventListener('input', dibujar);
-  $('mesMenos').addEventListener('click', () => { mover(-1); });
-  $('mesMas').addEventListener('click', () => { mover(1); });
-  function mover(d) {
-    const x = new Date(mes.anio, mes.mes + d, 1);
-    mes = { anio: x.getFullYear(), mes: x.getMonth() };
-    dibujar();
-  }
 
   // ---------- Datos en tiempo real ----------
   if (!/^[a-z0-9]{20,}$/.test(TOKEN)) {
@@ -259,10 +242,16 @@
           </div>`).join('')
         : `<div class="vacio">${q ? 'No hay transferencias que coincidan.' : 'No hay transferencias pendientes.'}</div>`);
 
-    // Rendidos del mes elegido
-    const clave = `${mes.anio}-${String(mes.mes + 1).padStart(2, '0')}`;
-    $('mesTexto').textContent = `${MESES[mes.mes]} ${mes.anio}`;
-    const rendidos = repartos.filter((r) => r.rendido && String(r.fecha).startsWith(clave)).sort(porFecha);
+    // Título con el mes del link
+    const mesLink = (repartos.find((r) => r.mes) || {}).mes;
+    if (mesLink) {
+      const [a, m] = mesLink.split('-').map(Number);
+      $('titulo').textContent = `Repartos ${MESES[m - 1]} ${a}`;
+      document.title = `ROM · ${MESES[m - 1]} ${a}`;
+    }
+
+    // Rendidos del mes
+    const rendidos = repartos.filter((r) => r.rendido).sort(porFecha);
     $('listaRendidos').innerHTML =
       `<div class="total"><span class="lbl">${rendidos.length} RENDIDO${rendidos.length === 1 ? '' : 'S'}</span><span class="val">${plata(rendidos.reduce((s, r) => s + r.totalPlanilla, 0))}</span></div>` +
       (rendidos.length
@@ -273,7 +262,7 @@
             </div>
             <div class="monto pos">${plata(r.totalPlanilla)}</div>
           </div>`).join('')
-        : '<div class="vacio">No hay repartos rendidos en este mes.</div>');
+        : '<div class="vacio">Todavía no hay repartos rendidos.</div>');
   }
 </script>
 </body>
